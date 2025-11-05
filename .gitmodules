@@ -1,0 +1,3 @@
+[submodule "input"]
+	path = input
+	url = ../advent-of-code-input.git
