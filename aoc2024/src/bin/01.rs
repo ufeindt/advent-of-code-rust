@@ -6,14 +6,15 @@ use std::path::Path;
 static YEAR: &str = "2024";
 static DAY: &str = "01";
 
-fn load_data(example_data: bool, test: bool) -> (Vec<usize>, Vec<usize>) {
-    let mut file_name = if example_data {
-        format!("input/{YEAR}/{DAY}.example.input")
-    } else {
-        format!("input/{YEAR}/{DAY}.input")
-    };
-    if test {
-        file_name = format!("../{file_name}");
+fn load_data(prefix: Option<&str>, suffix: Option<&str>) -> (Vec<usize>, Vec<usize>) {
+    let mut file_name = format!("input/{YEAR}/{DAY}.input");
+    match prefix {
+        None => (),
+        Some(p) => file_name = format!("{p}{file_name}"),
+    }
+    match suffix {
+        None => (),
+        Some(s) => file_name = format!("{file_name}{s}"),
     }
 
     let input =
@@ -43,8 +44,8 @@ fn load_data(example_data: bool, test: bool) -> (Vec<usize>, Vec<usize>) {
     (vec1, vec2)
 }
 
-fn solve_part_1(example_data: bool, test: bool) -> usize {
-    let (mut vec1, mut vec2) = load_data(example_data, test);
+fn solve_part_1(prefix: Option<&str>, suffix: Option<&str>) -> usize {
+    let (mut vec1, mut vec2) = load_data(prefix, suffix);
     vec1.sort();
     vec2.sort();
 
@@ -60,8 +61,8 @@ fn solve_part_1(example_data: bool, test: bool) -> usize {
     result
 }
 
-fn solve_part_2(example_data: bool, test: bool) -> usize {
-    let (vec1, vec2) = load_data(example_data, test);
+fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> usize {
+    let (vec1, vec2) = load_data(prefix, suffix);
 
     let mut count = HashMap::new();
     for val in vec2.iter() {
@@ -76,10 +77,10 @@ fn solve_part_2(example_data: bool, test: bool) -> usize {
 }
 
 fn main() {
-    let answer1 = solve_part_1(false, false);
+    let answer1 = solve_part_1(None, None);
     println!("Answer for part 1: {answer1}");
 
-    let answer2 = solve_part_2(false, false);
+    let answer2 = solve_part_2(None, None);
     println!("Answer for part 2: {answer2}");
 }
 
@@ -89,25 +90,25 @@ mod tests {
 
     #[test]
     fn example_part_1() {
-        let result = solve_part_1(true, true);
+        let result = solve_part_1(Some("../"), Some(".example"));
         assert_eq!(result, 11);
     }
 
     #[test]
     fn answer_part_1() {
-        let result = solve_part_1(false, true);
+        let result = solve_part_1(Some("../"), None);
         assert_eq!(result, 2970687);
     }
 
     #[test]
     fn example_part_2() {
-        let result = solve_part_2(true, true);
+        let result = solve_part_2(Some("../"), Some(".example"));
         assert_eq!(result, 31);
     }
 
     #[test]
     fn answer_part_2() {
-        let result = solve_part_2(false, true);
+        let result = solve_part_2(Some("../"), None);
         assert_eq!(result, 23963899);
     }
 }

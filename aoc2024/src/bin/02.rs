@@ -4,14 +4,15 @@ use std::path::Path;
 static YEAR: &str = "2024";
 static DAY: &str = "02";
 
-fn load_data(example_data: bool, test: bool) -> Vec<Vec<isize>> {
-    let mut file_name = if example_data {
-        format!("input/{YEAR}/{DAY}.example.input")
-    } else {
-        format!("input/{YEAR}/{DAY}.input")
-    };
-    if test {
-        file_name = format!("../{file_name}");
+fn load_data(prefix: Option<&str>, suffix: Option<&str>) -> Vec<Vec<isize>> {
+    let mut file_name = format!("input/{YEAR}/{DAY}.input");
+    match prefix {
+        None => (),
+        Some(p) => file_name = format!("{p}{file_name}"),
+    }
+    match suffix {
+        None => (),
+        Some(s) => file_name = format!("{file_name}{s}"),
     }
 
     let input =
@@ -59,9 +60,9 @@ fn is_report_safe(report: Vec<isize>, tolerance: i8) -> bool {
     true
 }
 
-fn solve_part_1(example_data: bool, test: bool) -> usize {
+fn solve_part_1(prefix: Option<&str>, suffix: Option<&str>) -> usize {
+    let data = load_data(prefix, suffix);
     let mut result: usize = 0;
-    let data = load_data(example_data, test);
 
     for report in data.iter() {
         if is_report_safe(report.to_vec(), 0) {
@@ -72,9 +73,9 @@ fn solve_part_1(example_data: bool, test: bool) -> usize {
     result
 }
 
-fn solve_part_2(example_data: bool, test: bool) -> usize {
+fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> usize {
     let mut result: usize = 0;
-    let data = load_data(example_data, test);
+    let data = load_data(prefix, suffix);
 
     for report in data.iter() {
         if is_report_safe(report.to_vec(), 1) {
@@ -86,10 +87,10 @@ fn solve_part_2(example_data: bool, test: bool) -> usize {
 }
 
 fn main() {
-    let answer1 = solve_part_1(false, false);
+    let answer1 = solve_part_1(None, None);
     println!("Answer for part 1: {answer1}");
 
-    let answer2 = solve_part_2(false, false);
+    let answer2 = solve_part_2(None, None);
     println!("Answer for part 2: {answer2}");
 }
 
@@ -99,25 +100,25 @@ mod tests {
 
     #[test]
     fn example_part_1() {
-        let result = solve_part_1(true, true);
+        let result = solve_part_1(Some("../"), Some(".example"));
         assert_eq!(result, 2);
     }
 
     #[test]
     fn answer_part_1() {
-        let result = solve_part_1(false, true);
+        let result = solve_part_1(Some("../"), None);
         assert_eq!(result, 524);
     }
 
     #[test]
     fn example_part_2() {
-        let result = solve_part_2(true, true);
+        let result = solve_part_2(Some("../"), Some(".example"));
         assert_eq!(result, 4);
     }
 
     #[test]
     fn answer_part_2() {
-        let result = solve_part_2(false, true);
+        let result = solve_part_2(Some("../"), None);
         assert_eq!(result, 569);
     }
 }
