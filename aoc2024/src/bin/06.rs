@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::hash::Hash;
 use std::path::Path;
 
 static YEAR: &str = "2024";
@@ -12,30 +13,232 @@ enum Direction {
     Down,
     Left,
 }
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-struct Point {
-    x: i16,
-    y: i16,
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct Node {
+    x: u8,
+    y: u8,
+    facing: Direction,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct Guard {
-    facing: Direction,
-    position: Point,
+enum NextNode {
+    Moved(Node),
+    Turned(Node),
+    Exited,
+}
+
+struct NodeMap {
+    width: u8,
+    height: u8,
+    next_nodes: HashMap<Node, NextNode>,
+}
+
+impl NodeMap {
+    fn get_next_node(&self, node: &Node) -> Option<&NextNode> {
+        self.next_nodes.get(node)
+    }
+
+    fn new(width: u8, height: u8) -> NodeMap {
+        let mut next_nodes = HashMap::new();
+        for x in 0..width {
+            for y in 0..height {
+                next_nodes.insert(
+                    Node {
+                        x,
+                        y,
+                        facing: Direction::Right,
+                    },
+                    if x < width - 1 {
+                        NextNode::Moved(Node {
+                            x: x + 1,
+                            y,
+                            facing: Direction::Right,
+                        })
+                    } else {
+                        NextNode::Exited
+                    },
+                );
+                next_nodes.insert(
+                    Node {
+                        x,
+                        y,
+                        facing: Direction::Down,
+                    },
+                    if y < height - 1 {
+                        NextNode::Moved(Node {
+                            x,
+                            y: y + 1,
+                            facing: Direction::Down,
+                        })
+                    } else {
+                        NextNode::Exited
+                    },
+                );
+                next_nodes.insert(
+                    Node {
+                        x,
+                        y,
+                        facing: Direction::Left,
+                    },
+                    if x > 0 {
+                        NextNode::Moved(Node {
+                            x: x - 1,
+                            y,
+                            facing: Direction::Left,
+                        })
+                    } else {
+                        NextNode::Exited
+                    },
+                );
+                next_nodes.insert(
+                    Node {
+                        x,
+                        y,
+                        facing: Direction::Up,
+                    },
+                    if y > 0 {
+                        NextNode::Moved(Node {
+                            x,
+                            y: y - 1,
+                            facing: Direction::Up,
+                        })
+                    } else {
+                        NextNode::Exited
+                    },
+                );
+            }
+        }
+        NodeMap {
+            width,
+            height,
+            next_nodes,
+        }
+    }
+
+    fn add_obstacle(&mut self, x: u8, y: u8) {
+        if x > 0 {
+            self.next_nodes.insert(
+                Node {
+                    x: x - 1,
+                    y,
+                    facing: Direction::Right,
+                },
+                NextNode::Turned(Node {
+                    x: x - 1,
+                    y,
+                    facing: Direction::Down,
+                }),
+            );
+        }
+        if y > 0 {
+            self.next_nodes.insert(
+                Node {
+                    x,
+                    y: y - 1,
+                    facing: Direction::Down,
+                },
+                NextNode::Turned(Node {
+                    x,
+                    y: y - 1,
+                    facing: Direction::Left,
+                }),
+            );
+        }
+        if x < self.width - 1 {
+            self.next_nodes.insert(
+                Node {
+                    x: x + 1,
+                    y,
+                    facing: Direction::Left,
+                },
+                NextNode::Turned(Node {
+                    x: x + 1,
+                    y,
+                    facing: Direction::Up,
+                }),
+            );
+        }
+        if y < self.height - 1 {
+            self.next_nodes.insert(
+                Node {
+                    x,
+                    y: y + 1,
+                    facing: Direction::Up,
+                },
+                NextNode::Turned(Node {
+                    x,
+                    y: y + 1,
+                    facing: Direction::Right,
+                }),
+            );
+        }
+    }
+
+    fn remove_obstacle(&mut self, x: u8, y: u8) {
+        if x > 0 {
+            self.next_nodes.insert(
+                Node {
+                    x: x - 1,
+                    y,
+                    facing: Direction::Right,
+                },
+                NextNode::Moved(Node {
+                    x,
+                    y,
+                    facing: Direction::Right,
+                }),
+            );
+        }
+        if y > 0 {
+            self.next_nodes.insert(
+                Node {
+                    x,
+                    y: y - 1,
+                    facing: Direction::Down,
+                },
+                NextNode::Moved(Node {
+                    x,
+                    y,
+                    facing: Direction::Down,
+                }),
+            );
+        }
+        if x < self.width - 1 {
+            self.next_nodes.insert(
+                Node {
+                    x: x + 1,
+                    y,
+                    facing: Direction::Left,
+                },
+                NextNode::Moved(Node {
+                    x,
+                    y,
+                    facing: Direction::Left,
+                }),
+            );
+        }
+        if y < self.height - 1 {
+            self.next_nodes.insert(
+                Node {
+                    x,
+                    y: y + 1,
+                    facing: Direction::Up,
+                },
+                NextNode::Moved(Node {
+                    x,
+                    y,
+                    facing: Direction::Up,
+                }),
+            );
+        }
+    }
 }
 
 enum PathResult {
-    Exited(HashSet<Guard>),
+    Exited(Vec<Node>),
     Loop,
 }
-struct Map {
-    width: i16,
-    height: i16,
-    obstacles: HashSet<Point>,
-}
 
-fn load_data(prefix: Option<&str>, suffix: Option<&str>) -> (Map, Guard) {
+fn load_data(prefix: Option<&str>, suffix: Option<&str>) -> (NodeMap, Node) {
     let mut file_name = format!("input/{YEAR}/{DAY}.input");
     match prefix {
         None => (),
@@ -49,139 +252,102 @@ fn load_data(prefix: Option<&str>, suffix: Option<&str>) -> (Map, Guard) {
     let input =
         fs::read_to_string(Path::new(&file_name)).expect("Should have been able to read the file");
 
-    let mut map = Map {
-        width: 0,
-        height: 0,
-        obstacles: HashSet::new(),
-    };
-    let mut guard = Guard {
-        facing: Direction::Right,
-        position: Point { x: 0, y: 0 },
+    let width = input.split("\n").next().unwrap().len() as u8;
+    let height = input.split("\n").filter(|l| l.len() > 0).count() as u8;
+    let mut node_map = NodeMap::new(width, height);
+    let mut starting_node = Node {
+        x: 0,
+        y: 0,
+        facing: Direction::Up,
     };
     for (y, line) in input.split("\n").enumerate() {
         if line.len() == 0 {
             continue;
         }
         for (x, c) in line.chars().enumerate() {
-            let position = Point {
-                x: x as i16,
-                y: y as i16,
-            };
             match c {
                 '.' => {}
                 '#' => {
-                    map.obstacles.insert(position);
+                    node_map.add_obstacle(x as u8, y as u8);
                 }
-                '^' => {
-                    guard.facing = Direction::Up;
-                    guard.position = position;
+                _ => {
+                    starting_node = Node {
+                        x: x as u8,
+                        y: y as u8,
+                        facing: match c {
+                            '^' => Direction::Up,
+                            'v' => Direction::Down,
+                            '<' => Direction::Left,
+                            '>' => Direction::Right,
+                            _ => panic!("Unexpected character"),
+                        },
+                    };
                 }
-                'v' => {
-                    guard.facing = Direction::Down;
-                    guard.position = position;
-                }
-                '<' => {
-                    guard.facing = Direction::Left;
-                    guard.position = position;
-                }
-                '>' => {
-                    guard.facing = Direction::Right;
-                    guard.position = position;
-                }
-                _ => panic!("Unexpected character"),
-            }
-            if y == 0 {
-                map.width += 1;
             }
         }
-        map.height += 1;
     }
 
-    (map, guard)
+    (node_map, starting_node)
 }
 
-fn move_guard(guard: Guard, map: &Map) -> Option<Guard> {
-    let mut new_guard = guard.clone();
-    match new_guard.facing {
-        Direction::Up => new_guard.position.y -= 1,
-        Direction::Right => new_guard.position.x += 1,
-        Direction::Down => new_guard.position.y += 1,
-        Direction::Left => new_guard.position.x -= 1,
-    }
-
-    if new_guard.position.x < 0
-        || new_guard.position.y < 0
-        || new_guard.position.x >= map.width as i16
-        || new_guard.position.y >= map.height as i16
-    {
-        return None;
-    }
-
-    if map.obstacles.contains(&new_guard.position) {
-        match new_guard.facing {
-            Direction::Up => new_guard.facing = Direction::Right,
-            Direction::Right => new_guard.facing = Direction::Down,
-            Direction::Down => new_guard.facing = Direction::Left,
-            Direction::Left => new_guard.facing = Direction::Up,
-        }
-        new_guard.position = Point {
-            x: guard.position.x,
-            y: guard.position.y,
-        };
-    }
-
-    Some(new_guard)
-}
-
-fn get_guard_path(mut guard: Guard, map: &Map) -> PathResult {
-    let mut path = HashSet::new();
-    path.insert(guard.clone());
+fn get_guard_path(map: &NodeMap, mut path: Vec<Node>) -> PathResult {
+    let mut node = path.last().expect("Path must not be empty").clone();
+    let mut previous_nodes = HashSet::new();
+    previous_nodes.insert(node.clone());
     loop {
-        let new_guard = move_guard(guard.clone(), map);
-        match new_guard {
-            None => return PathResult::Exited(path),
-            Some(g) => {
-                if path.contains(&g) {
-                    return PathResult::Loop;
-                }
-                path.insert(g.clone());
-                guard = g.clone();
-            }
+        match map.get_next_node(&node).expect("No next node found.") {
+            NextNode::Exited => return PathResult::Exited(path),
+            NextNode::Moved(n) => node = n.clone(),
+            NextNode::Turned(n) => node = n.clone(),
         }
+        if previous_nodes.contains(&node) {
+            return PathResult::Loop;
+        }
+        path.push(node.clone());
+        previous_nodes.insert(node.clone());
     }
 }
 
-fn get_guard_visited(guard: Guard, map: &Map) -> HashSet<Point> {
-    match get_guard_path(guard, map) {
-        PathResult::Exited(p) => p.iter().map(|g| g.position).collect(),
-        PathResult::Loop => panic!("Guard is in a loop"),
+fn get_guard_visited(map: &NodeMap, node: Node) -> HashSet<(u8, u8)> {
+    match get_guard_path(map, vec![node]) {
+        PathResult::Exited(path) => path
+            .into_iter()
+            .map(|n| (n.x, n.y))
+            .collect::<HashSet<(u8, u8)>>(),
+        _ => panic!("Guard should have exited"),
     }
 }
 
 fn solve_part_1(prefix: Option<&str>, suffix: Option<&str>) -> usize {
-    let (map, guard) = load_data(prefix, suffix);
-    let visited = get_guard_visited(guard, &map);
+    let (map, node) = load_data(prefix, suffix);
+    let visited = get_guard_visited(&map, node.clone());
 
     visited.len()
 }
 
 fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> usize {
     let mut result: usize = 0;
-    let (map, guard) = load_data(prefix, suffix);
-    let visited = get_guard_visited(guard.clone(), &map);
+    let (mut map, node) = load_data(prefix, suffix);
+    let original_path = match get_guard_path(&map, vec![node.clone()]) {
+        PathResult::Exited(path) => path,
+        _ => panic!("Guard should have exited"),
+    };
 
-    for point in visited.iter() {
-        let mut new_obstacles = map.obstacles.clone();
-        new_obstacles.insert(*point);
-        let new_map = Map {
-            width: map.width,
-            height: map.height,
-            obstacles: new_obstacles,
-        };
-        match get_guard_path(guard.clone(), &new_map) {
+    let mut tested = HashSet::new();
+    tested.insert((node.x, node.y));
+    let mut path = vec![node.clone()];
+    for node in original_path.iter().skip(1) {
+        if tested.contains(&(node.x, node.y)) {
+            continue;
+        }
+        map.add_obstacle(node.x, node.y);
+        match get_guard_path(&map, path.clone()) {
             PathResult::Loop => result += 1,
             _ => {}
         }
+        map.remove_obstacle(node.x, node.y);
+        path.push(node.clone());
+        tested.insert((node.x, node.y));
     }
 
     result
