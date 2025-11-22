@@ -22,21 +22,19 @@ fn load_data(prefix: Option<&str>, suffix: Option<&str>) -> () {
 }
 
 fn solve_part_1(prefix: Option<&str>, suffix: Option<&str>) -> usize {
-    let mut result: usize = 0;
     let data = load_data(prefix, suffix);
 
     // Solve part 1
 
-    result
+    0
 }
 
 fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> usize {
-    let mut result: usize = 0;
     let data = load_data(prefix, suffix);
 
     // Solve part 2
 
-    result
+    0
 }
 
 fn main() {
