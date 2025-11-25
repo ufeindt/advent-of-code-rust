@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -47,11 +47,11 @@ fn solve_part_1(prefix: Option<&str>, suffix: Option<&str>) -> isize {
 
 fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> isize {
     let secrets = load_data(prefix, suffix);
-    let mut sequence_outcomes = vec![];
 
+    let mut sequence_totals = HashMap::new();
     for secret in secrets {
         let mut old_secret = secret;
-        let mut sequences = HashMap::new();
+        let mut encountered = HashSet::new();
         let mut current_sequence = (0, 0, 0, 0);
         for k in 0..2000 {
             let new_secret = next_secret(old_secret);
@@ -62,29 +62,16 @@ fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> isize {
                 (new_secret % 10) - (old_secret % 10),
             );
             // println!("{k}: {:?}", current_sequence);
-            if k >= 3 && !sequences.contains_key(&current_sequence) {
-                sequences.insert(current_sequence, new_secret % 10);
+            if k >= 3 && !encountered.contains(&current_sequence) {
+                encountered.insert(current_sequence);
+                let total = sequence_totals.entry(current_sequence).or_insert(0);
+                *total += new_secret % 10;
             }
             old_secret = new_secret;
         }
-        sequence_outcomes.push(sequences);
     }
 
-    let all_sequences = sequence_outcomes
-        .iter()
-        .flat_map(|sequences| sequences.keys())
-        .collect::<std::collections::HashSet<_>>();
-
-    all_sequences
-        .iter()
-        .map(|sequence| {
-            sequence_outcomes
-                .iter()
-                .map(|outcomes| outcomes.get(sequence).unwrap_or(&0))
-                .sum()
-        })
-        .max()
-        .unwrap()
+    *sequence_totals.values().max().unwrap()
 }
 
 fn main() {
