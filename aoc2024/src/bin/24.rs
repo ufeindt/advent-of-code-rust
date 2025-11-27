@@ -1,4 +1,3 @@
-use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -7,7 +6,7 @@ use std::path::Path;
 static YEAR: &str = "2024";
 static DAY: &str = "24";
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum GateType {
     AND,
     OR,
@@ -105,15 +104,24 @@ fn get_gate_output(
     }
 }
 
-fn get_register(
-    name: &str,
+fn get_input_register(name: &str, inputs: &HashMap<String, bool>) -> usize {
+    let mut value = 0;
+    for (input_name, input_value) in inputs.iter() {
+        if input_name.starts_with(name) && *input_value {
+            value += 1 << (input_name[1..].parse::<usize>().unwrap());
+        }
+    }
+    value
+}
+
+fn get_output_register(
     inputs: &HashMap<String, bool>,
     gates: &HashMap<String, (GateType, String, String)>,
     outputs: &mut HashMap<String, bool>,
 ) -> usize {
     let mut value = 0;
     for gate_name in gates.keys() {
-        if gate_name.starts_with(name) && get_gate_output(gate_name, inputs, gates, outputs) {
+        if gate_name.starts_with("z") && get_gate_output(gate_name, inputs, gates, outputs) {
             value += 1 << (gate_name[1..].parse::<usize>().unwrap());
         }
     }
@@ -161,11 +169,6 @@ fn swap_gate_outputs(
     new_gates
 }
 
-// def set_random_inputs(self):
-//     for gate in self.gates.values():
-//         if gate.name[0] in "xy":
-//             gate.output = bool(random.getrandbits(1))
-
 fn get_suspicious_gates(gates: &HashMap<String, (GateType, String, String)>) -> HashSet<String> {
     let max_z = gates
         .keys()
@@ -181,7 +184,7 @@ fn get_suspicious_gates(gates: &HashMap<String, (GateType, String, String)>) -> 
         match gates.get(&gate_name) {
             None => (),
             Some((gate_type, _, _)) => {
-                if *gate_type != GateType::OR {
+                if *gate_type != GateType::XOR {
                     suspicious.insert(gate_name);
                 }
             }
@@ -211,11 +214,18 @@ fn get_suspicious_gates(gates: &HashMap<String, (GateType, String, String)>) -> 
         if !gate_name.starts_with("z") {
             suspicious.insert(gate_name.to_string());
         }
+    }
 
+    for (gate_name, (gate_type, input_1, input_2)) in gates.iter() {
         // XOR only takes an input bit if a XOR follows it, unless the input bits are the first bits
-        if [("x00", "y00"), ("y00", "x00")].contains(&(input_1.as_str(), input_2.as_str())) {
+        if *gate_type != GateType::XOR
+            || !((input_1.starts_with("x") && input_2.starts_with("y"))
+                || (input_1.starts_with("y") && input_2.starts_with("x")))
+            || [("x00", "y00"), ("y00", "x00")].contains(&(input_1.as_str(), input_2.as_str()))
+        {
             continue;
         }
+
         let connecting_gates = gates
             .values()
             .filter(|g| g.1 == *gate_name || g.2 == *gate_name);
@@ -242,46 +252,19 @@ fn get_suspicious_gates(gates: &HashMap<String, (GateType, String, String)>) -> 
     suspicious
 }
 
-fn count_combinations(n: u64, r: u64) -> u64 {
-    if r > n {
-        0
-    } else {
-        (1..=r).fold(1, |acc, val| acc * (n - val + 1) / val)
-    }
-}
-
 fn solve_part_1(prefix: Option<&str>, suffix: Option<&str>) -> usize {
     let (inputs, gates) = load_data(prefix, suffix);
     let mut outputs: HashMap<String, bool> = HashMap::new();
-    get_register("z", &inputs, &gates, &mut outputs)
+    get_output_register(&inputs, &gates, &mut outputs)
 }
 
 fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> String {
     let (inputs, gates) = load_data(prefix, suffix);
-
     let suspicious_gates = get_suspicious_gates(&gates);
-    println!(
-        "Found {} suspicious gates of {} gates.",
-        suspicious_gates.len(),
-        gates.len()
-    );
-    return "wrong".to_string();
     let combos = suspicious_gates.iter().combinations(2);
 
     let mut answers = HashSet::new();
-    let bar = ProgressBar::new(count_combinations(
-        combos.clone().collect::<Vec<_>>().len() as u64,
-        4,
-    ) as u64);
-    bar.set_style(
-        ProgressStyle::with_template(
-            "[{elapsed}/{eta}] {bar:40.cyan/blue} {pos}/{len} {percent:3} {msg}",
-        )
-        .unwrap()
-        .progress_chars("##-"),
-    );
     for swap_set in combos.combinations(4).into_iter() {
-        bar.inc(1);
         let mut unique_gates = HashSet::new();
         for swap in swap_set.clone() {
             for gate_name in swap {
@@ -313,9 +296,8 @@ fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> String {
                 .iter()
                 .map(|(k, _)| (k.to_string(), rand::random_bool(0.5)))
                 .collect::<HashMap<_, _>>();
-            if get_register("x", &test_inputs, &gates, &mut outputs)
-                + get_register("y", &test_inputs, &gates, &mut outputs)
-                != get_register("z", &test_inputs, &gates, &mut outputs)
+            if get_input_register("x", &test_inputs) + get_input_register("y", &test_inputs)
+                != get_output_register(&test_inputs, &fixed_gates, &mut outputs)
             {
                 test_passed = false;
                 break;
@@ -330,10 +312,8 @@ fn solve_part_2(prefix: Option<&str>, suffix: Option<&str>) -> String {
             }
             gate_names.sort();
             answers.insert(gate_names.join(","));
-            break;
         }
     }
-    bar.finish();
 
     answers.iter().join("\n")
 }
